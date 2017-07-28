@@ -9,6 +9,7 @@ import {BootstrapTable, TableHeaderColumn} from 'react-bootstrap-table';
 import {Redirect} from 'react-router-dom';
 import elasticsearch from 'elasticsearch'
 import ProductTable from './ProductTable.js'
+import BuyTable from './BuyTable.js'
 //import { Router, Route, Switch } from 'react-router'
 //import { BrowserRouter, Route, Link } from 'react-router-dom'
 
@@ -18,9 +19,6 @@ var Link = require('react-router-dom').Link
 var web3 = require('web3');
 //var elasticsearch = require('elasticsearch')
 
-var products=[];
-var productkeys=[];
-var buyproducts=[];
 
 var selectRowProp= {
   mode: "checkbox",
@@ -36,8 +34,8 @@ class App extends Component {
 
   constructor(props) {
     super(props);
-       this.state = { contractJson:[], switchVal: 0, results:[], IPFSContract:'', IPFSText: '--',
-      ETHEREUM_CLIENT: 'a', switchVal:0, UserMessage: [], buyingproducts: [],
+       this.state = { contractJson:[], switchVal: 0,stateProductsToBuy: [], stateProducts: [], stateProductKeys: [], stateRefs: '', results:[], IPFSContract:'', IPFSText: '--',
+      ETHEREUM_CLIENT: 'a', switchVal:0, UserMessage: [],
       contractAddress: '0x8d3e374e9dfcf7062fe8fc5bd5476b939a99b3ed',
       ZsendAddress:'0xd73e172751e751d274037cb1f668eb637df55e33',ZsendContract:''}
 
@@ -47,6 +45,9 @@ class App extends Component {
     this.buttonFormatter = this.buttonFormatter.bind(this)
     this.multilinecell = this.multilinecell.bind(this)
     this.getSelectedRowKeys = this.getSelectedRowKeys.bind(this)
+    this.updateProductArrays = this.updateProductArrays.bind(this)
+    this.buygetSelectedRowKeys = this.buygetSelectedRowKeys.bind(this)
+    this.clickRow = this.clickRow.bind(this)
     //this.selectRowProp = this.selectRowProp.bind(this)
   }
 
@@ -64,20 +65,38 @@ multilinecell (cell, row) {
 
 handleChange (  ) {
 //  const search_query = event.target.value
+console.log("this - ", this)
 this.setState({switchVal:0});
   var searchQ = this.searchParm.value;
 var search_queryES="partdesc:" + searchQ + "*"
-  esClient.search({
+/*  esClient.search({
     q: search_queryES
   }).then(function ( body ) {
     this.setState({
       results: body.hits.hits
     })
     console.log(this.state.results)
+    this.updateProductArrays();
   }.bind(this), function ( error ) {
     console.trace( error.message );
   });
+*/
+  esClient.search({
+    q: search_queryES
+  }).then(body => {
+    this.setState({
+      results: body.hits.hits
+    })
+    console.log(this.state.results)
+    this.updateProductArrays();
+  }, error => {
+    console.trace( error.message );
+  });
+
 }
+
+
+
 
 imageFormatter(cell, row) {
   return (<img style={{width:50}} src={cell}/>)
@@ -90,19 +109,58 @@ buygetSelectedRowKeys() {
   console.log('selected buy option')
 }
 
-getSelectedRowKeys() {
-  var c= this.refs.table.state.selectedRowKeys;
-  this.setState({buyingproducts: c});
-  console.log(this.refs.table.state.selectedRowKeys);
-  this.setState({switchVal: 1});
+handleClick = () => {
+  console.log('clickity');
+}
+
+// https://daveceddia.com/avoid-bind-when-passing-props/
+
+updateStateRefs = (stateRefsParm) => {
+  this.setState({stateRefs: stateRefsParm })
+}
+
+clickRow = () => {
+  //var c= this.state.stateRefs.table.state.selectedRowKeys;
+  console.log("clicked on row")
+}
+
+getSelectedRowKeys = () => {
+  // this.refs.table
+  var c= this.state.stateRefs.table.state.selectedRowKeys;
+  var productsToBuy = [];
+
+
+  console.log(this.state.stateRefs.table.state.selectedRowKeys);
+  this.setState({switchVal: 1}); // used to decide on rendering - possible bad practice solution
 
     for (var i = 0; i < c.length; i++) {
-      var j =  this.productkeys.prototype.findindex(c[i])
-      this.buyproducts[i]=this.productkeys[j];
+    //  var j =  this.state.stateProductKeys.parttnumber.indexOf(c[i])
+  //    productsToBuy[i]=this.state.stateProducts[j];
+      let {indexValue} = this.findElement(c[i])
+      if (indexValue >-1) {
+        var x=this.state.stateProducts[indexValue];
+        productsToBuy[i]=x;
+      }
     }
+      this.setState({stateProductsToBuy: productsToBuy});
+      var t=1;
   //<Redirect to="/about"/>
   //render() { return <Link to={'/about'} />; }
 }
+
+findElement=(searchString)=>{
+  // fix - upgrade to ES6 findindex solution - these failed previously
+    var found=-1;
+    for (var i = 0; i < this.state.stateProductKeys.length; i++) {
+      if (this.state.stateProductKeys[i].partnumber==searchString)
+      {
+        found =i;
+      }
+    }
+    return {indexValue: found}
+}
+
+
 //  <TableHeaderColumn dataField="button"   dataAlign="center"
 //  dataFormat={this.buttonFormatter}>Buy</TableHeaderColumn>
 
@@ -110,44 +168,77 @@ getSelectedRowKeys() {
     //                "partdesc": "3-Hole basin mixer installation with star handles, escutcheons with short spout, wall mounted spout 166 mm long normal spray flow rate: 5 l/min operating pressure: min. 1 bar / max. 10 bar flush grated waste - water flow cannot be stopped ",
     ///                "partnumber": "34215000",
     //                "partman": "Grohe"
+componentWillMount() {
+
+  this.updateProductArrays()
+}
+
+updateProductArrays=()=>{
+  var products=[];
+  var productkeys=[];
+
+   var setTable = "table"
+  for (var i = 0; i < this.state.results.length; i++) {
+     var customerName =  this.state.results[i];
+     var partdesc = customerName._source.partdesc;
+     var partnumber = customerName._source.partnumber;
+     var partman = customerName._source.partman;
+     var imageurl = customerName._source.imageurl;
+     var mynewname = 'trevor oakley data field';
+     var myimageurl = 'https://s14.postimg.org/c3w0pd569/groheimage.jpg'
+     productkeys.push({
+       'partnumber': partnumber
+     })
+        products.push({
+        'partnumber':   partnumber,
+        'imageurl': imageurl,
+        'partdesc': partdesc,
+        'partman': partman
+      });
+      }
+this.setState({stateProducts: products}) // these are async updates hence local vars are used
+this.setState({stateProductKeys: productkeys})
+}
+
   render() {
-     products=[];
-     productkeys=[];
-    for (var i = 0; i < this.state.results.length; i++) {
-       var customerName =  this.state.results[i];
-       var partdesc = customerName._source.partdesc;
-       var partnumber = customerName._source.partnumber;
-       var partman = customerName._source.partman;
-       var imageurl = customerName._source.imageurl;
-       var mynewname = 'trevor oakley data field';
-       var myimageurl = 'https://s14.postimg.org/c3w0pd569/groheimage.jpg'
-       productkeys.push({
-         'partnumber': partnumber
-       })
-          products.push({
-          'partnumber':   partnumber,
-          'imageurl': imageurl,
-          'partdesc': partdesc,
-          'partman': partman
-        });
-        }
-
-         const tableHtml =<div>
-
+    var setTable = 'table';
+       var setSelectRowProp ={ mode: "checkbox",  clickToSelect: true}
+       var tableHtml=''
+       if (this.state.switchVal==0) {
+          tableHtml =<div>
            <ProductTable
-           products={products}
-           selectRowProp={this.selectRowProp}
-          getSelectedRowKeys={this.getSelectedRowKeys.bind(this)}
-
+           products={this.state.stateProducts}
+           imageFormatter={this.imageFormatter}
+           multilinecell={this.multilinecell}
+           updateStateRefs={this.updateStateRefs}
+           selectRowProp={setSelectRowProp}
+           setTable={setTable}
+          getSelectedRowKeys={this.getSelectedRowKeys}
            />
          </div>
+       }
 
-
-/*       var tableHtml =
+       if (this.state.switchVal==1) {
+          tableHtml =<div>
+           <BuyTable
+           products={this.state.stateProductsToBuy}
+           imageFormatter={this.imageFormatter}
+      //     buttonFormatter={this.buttonFormatter}
+           multilinecell={this.multilinecell}
+           updateStateRefs={this.updateStateRefs}
+           selectRowProp={setSelectRowProp}
+           setTable={setTable}
+        //   clickRow={this.clickRow}
+          buygetSelectedRowKeys={this.buygetSelectedRowKeys}
+           />
+         </div>
+       }
+/*
+       var tableHtml3 =
        <div>
-       <button onClick={this.getSelectedRowKeys.bind(this)}>Buy</button>
+       <button onClick={this.getSelectedRowKeys}>Buy</button>
        <button><Link  to={'/about'}>Link</Link></button>
-    <BootstrapTable data={products} selectRow={selectRowProp} ref='table'
+    <BootstrapTable data={this.state.stateProducts} selectRow={selectRowProp  } ref='table'
     striped={true} hover={true}>
         <TableHeaderColumn      dataField="imageurl"  width='200px' dataAlign="center"
         dataFormat={this.imageFormatter}>Image</TableHeaderColumn>
@@ -159,11 +250,11 @@ getSelectedRowKeys() {
         dataSort={true}>Manufacturer</TableHeaderColumn>
       </BootstrapTable>
       </div>
-*/
+
       var buyTableHtml =
       <div>
       <button onClick={this.buygetSelectedRowKeys.bind(this)}>Confirm</button>
-   <BootstrapTable data={buyproducts} selectRow={selectRowProp} ref='buytable'
+   <BootstrapTable data={this.state.stateProductsToBuy} selectRow={selectRowProp} ref='buytable'
    striped={true} hover={true}>
        <TableHeaderColumn      dataField="imageurl"  width='200px' dataAlign="center"
        dataFormat={this.imageFormatter}>Image</TableHeaderColumn>
@@ -175,6 +266,7 @@ getSelectedRowKeys() {
        dataSort={true}>Manufacturer</TableHeaderColumn>
      </BootstrapTable>
      </div>
+     */
     const navbarInstance = (
   <Navbar>
     <Navbar.Header>
@@ -219,16 +311,20 @@ getSelectedRowKeys() {
   </Navbar>
 );
 
-var buyHTML =
+var buyHTML = ''
+if (this.state.switchVal==1) {
+buyHTML=
 <div  >
   {navbarInstance}
+  <div><h1>Selected Products</h1></div>
   <div>
-    <h1>Trevor Oakley {this.state.buyingproducts}</h1>
+    {tableHtml}
   </div>
   <div>
-  {buyTableHtml}
+
   </div>
 </div>
+}
 
 if (this.state.switchVal==0) buyHTML = '';
 
@@ -249,7 +345,7 @@ if (this.state.switchVal==0) {
       {navbarInstance}
       <div>
         <h1>About Us</h1>
-        {this.state.buyingproducts}
+        {this.state.stateProductsToBuy}
 
       </div>
     </div>

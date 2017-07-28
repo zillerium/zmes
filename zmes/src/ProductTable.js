@@ -35,24 +35,36 @@ class ProductTable extends React.Component {
     return "<textarea readonly class='form-control cell' rows='3'>"+ cell + "</textarea>";
   }
 
+  componentDidMount(newProps) {
+//    this.setState({stateRefs: this.refs});
+    this.props.updateStateRefs(this.refs)
+    console.log("props": props)
+    console.log("newprops": newProps)
+  }
+
 render() {
+  var selectRowProp = {
+    mode: "checkbox",
+      clickToSelect: true
+  }
     var tableHtml =
     <div>
      <button onClick={this.props.getSelectedRowKeys}>Buy</button>
     <button><Link  to={'/about'}>Link</Link></button>
-    <BootstrapTable data={this.props.products}  selectRow={this.selectRowProp} ref='table'
+    <BootstrapTable data={this.props.products}  selectRow={this.props.selectRowProp} ref={this.props.setTable}
     striped={true} hover={true}>
      <TableHeaderColumn      dataField="imageurl"  width='200px' dataAlign="center"
-     dataFormat={this.imageFormatter}>Image</TableHeaderColumn>
+     dataFormat={this.props.imageFormatter}>Image</TableHeaderColumn>
      <TableHeaderColumn   width='200px'   dataField="partnumber" isKey={true} dataAlign="center"
      dataSort={true}>Part Number</TableHeaderColumn>
-     <TableHeaderColumn   dataField="partdesc" dataFormat={this.multilinecell}  dataAlign="center"
+     <TableHeaderColumn   dataField="partdesc" dataFormat={this.props.multilinecell}  dataAlign="center"
      dataSort={true}>Desc</TableHeaderColumn>
      <TableHeaderColumn   dataField="partman" width='200px'  dataAlign="center"
      dataSort={true}>Manufacturer</TableHeaderColumn>
     </BootstrapTable>
     </div>
 return ( <div>
+
     {tableHtml}
     </div>
   )
