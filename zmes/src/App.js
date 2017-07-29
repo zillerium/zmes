@@ -5,11 +5,12 @@ import './App.css';
 import _ from 'lodash'
 import {Navbar, Jumbotron, Button, Nav, NavItem, NavDropdown,
   MenuItem, FormGroup, FormControl} from 'react-bootstrap';
-import {BootstrapTable, TableHeaderColumn} from 'react-bootstrap-table';
+import {BootstrapTable, TableHeaderColumn,  InsertButton} from 'react-bootstrap-table';
 import {Redirect} from 'react-router-dom';
 import elasticsearch from 'elasticsearch'
 import ProductTable from './ProductTable.js'
 import BuyTable from './BuyTable.js'
+import BSTable from './BSTable.js'
 //import { Router, Route, Switch } from 'react-router'
 //import { BrowserRouter, Route, Link } from 'react-router-dom'
 
@@ -30,11 +31,17 @@ const esClient = new elasticsearch.Client({
   log: 'error'
 })
 
+const esSellerClient = new elasticsearch.Client({
+  host: 'toganic.com:9200/seller',
+  log: 'error'
+})
+
 class App extends Component {
 
   constructor(props) {
     super(props);
-       this.state = { contractJson:[], switchVal: 0,stateProductsToBuy: [], stateProducts: [], stateProductKeys: [], stateRefs: '', results:[], IPFSContract:'', IPFSText: '--',
+       this.state = { contractJson:[], switchVal: 0,stateProductsToBuy: [], stateProducts: [],
+         stateProductKeys: [], stateRefs: '', results:[], IPFSContract:'', IPFSText: '--', sellerProducts: [],
       ETHEREUM_CLIENT: 'a', switchVal:0, UserMessage: [],
       contractAddress: '0x8d3e374e9dfcf7062fe8fc5bd5476b939a99b3ed',
       ZsendAddress:'0xd73e172751e751d274037cb1f668eb637df55e33',ZsendContract:''}
@@ -48,6 +55,11 @@ class App extends Component {
     this.updateProductArrays = this.updateProductArrays.bind(this)
     this.buygetSelectedRowKeys = this.buygetSelectedRowKeys.bind(this)
     this.clickRow = this.clickRow.bind(this)
+    this.createCustomInsertButton=this.createCustomInsertButton.bind(this)
+    this.LinkFormatter=this.LinkFormatter.bind(this)
+    this.expandComponent=this.expandComponent.bind(this)
+    this.isExpandableRow=this.isExpandableRow.bind(this)
+    this.getSellerData=this.getSellerData.bind(this)
     //this.selectRowProp = this.selectRowProp.bind(this)
   }
 
@@ -59,13 +71,147 @@ Login() {
 
 }
 
+isExpandableRow(row) {
+  return true;
+}
+
+LinkFormatter (cell, row) {
+  var url = "http://merrows.co.uk"
+  var link = "<a href="+url+">"+"mrrows"+"</a>";
+  return link;
+}
+
 multilinecell (cell, row) {
   return "<textarea readonly class='form-control cell' rows='3'>"+ cell + "</textarea>";
 }
 
+expandComponent(row) {
+  console.log("expand")
+
+  console.log("expand row action")
+  var i=9;
+ var sellers = this.findSellers(row.partman, row.partnumber)
+
+  return (
+    <BSTable
+    data={sellers}
+    LinkFormatter={this.LinkFormatter}
+    />
+)
+}
+
+handleExpand(rowKey, isExpand) {
+  if (isExpand) {
+    console.log(`row: ${rowKey} is ready to expand`);
+  } else {
+    console.log(`row: ${rowKey} is ready to collapse`);
+  }
+}
+
+findSellers = (m, p) => {
+
+
+  var productsLocal = [];
+
+       var sellerurl= "http://www.building-supplies-online.co.uk/grohe-allure-bathshower-mixer-trim-two-way-diverter-19446000-194.html"
+       var sellername= "BSO"
+       var partnumber= "19446000"
+       var partprice= "299.65"
+       var partman= "Grohe"
+
+       productsLocal.push({
+       'sellerurl':   sellerurl,
+       'sellername': sellername,
+       'partnumber': partnumber,
+       'partprice': partprice,
+       'partman': partman,
+      'partkey': partman+' '+partnumber
+     });
+
+
+
+
+       var sellerurl= "https://www.bathroomsandshowersdirect.co.uk/bath-shower-mixers/bath-shower-mixers/grohe-allure-19446000-aquadimmer-bath-shower-mixer-trim-set"
+       var sellername= "Bathrooms and Showers Direct"
+       var partnumber= "19446000"
+       var partprice= "311.02"
+       var partman= "Grohe"
+
+       productsLocal.push({
+       'sellerurl':   sellerurl,
+       'sellername': sellername,
+       'partnumber': partnumber,
+       'partprice': partprice,
+       'partman': partman,
+       'partkey': partman+' '+partnumber
+     });
+
+     var sellerurl= "https://www.ergonomicdesigns.co.uk/product/27706000~grohe-spa-allure-brilliant-chrome-wall-hand-shower-holder.htmlt"
+     var sellername= "Ergonomic Designs"
+     var partnumber= "27706000"
+     var partprice= "18.15"
+     var partman= "Grohe"
+
+     productsLocal.push({
+     'sellerurl':   sellerurl,
+     'sellername': sellername,
+     'partnumber': partnumber,
+     'partprice': partprice,
+     'partman': partman,
+     'partkey': partman+' '+partnumber
+   });
+
+
+ return productsLocal;
+
+
+
+}
+
+
+ findSellers2 = ( searchPartMan, searchPartNumber ) => {
+//  const search_query = event.target.value
+console.log("this - ", this)
+
+console.log("seller action", searchPartNumber)
+
+//  var searchQ = this.searchParm.value;
+
+var search_queryES="partnumber:" + searchPartNumber
+/*  esClient.search({
+    q: search_queryES
+  }).then(function ( body ) {
+    this.setState({
+      results: body.hits.hits
+    })
+    console.log(this.state.results)
+    this.updateProductArrays();
+  }.bind(this), function ( error ) {
+    console.trace( error.message );
+  });
+*/
+var sellerListing=[];
+  esSellerClient.search({
+    q: search_queryES
+  }).then(body => {
+
+      var searchResults=body.hits.hits
+  sellerListing=this.updateSellerArrays(searchResults);
+     var f=1;
+
+  //  this.updateProductArrays();
+  }, error => {
+    console.trace( error.message );
+
+  });
+return sellerListing;
+}
+
+
 handleChange (  ) {
 //  const search_query = event.target.value
 console.log("this - ", this)
+console.log("get product data")
 this.setState({switchVal:0});
   var searchQ = this.searchParm.value;
 var search_queryES="partdesc:" + searchQ + "*"
@@ -95,7 +241,23 @@ var search_queryES="partdesc:" + searchQ + "*"
 
 }
 
+handleInsertButtonClick = (onClick) => {
+  // Custom your onClick event here,
+  // it's not necessary to implement this function if you have no any process before onClick
+  console.log('This is my custom function for InserButton click event');
+  onClick();
+}
 
+createCustomInsertButton = (onClick) => {
+  return (
+    <InsertButton
+      btnText='CustomInsertText'
+      btnContextual='btn-warning'
+      className='my-custom-class'
+      btnGlyphicon='glyphicon-edit'
+      onClick={ () => this.handleInsertButtonClick(onClick) }/>
+  );
+}
 
 
 imageFormatter(cell, row) {
@@ -124,8 +286,34 @@ clickRow = () => {
   console.log("clicked on row")
 }
 
+getSellerData(productRecord){
+  var sellerProducts=[];
+console.log("get seller data")
+  var productsLocal = [];
+
+    var partman = productRecord.partman;
+    var imageurl = productRecord.imageurl;
+    var partdesc = productRecord.partdesc;
+    var partnumber = productRecord.partnumber;
+    sellerProducts = this.findSellers(partman, partnumber);
+    productsLocal.push({
+    'partnumber':   partnumber,
+    'imageurl': imageurl,
+    'partdesc': partdesc,
+    'partman': partman,
+    'sellers': sellerProducts
+  });
+
+
+  return productsLocal;
+//  this.setState({stateProducts: productsLocal});
+
+}
+
+
 getSelectedRowKeys = () => {
   // this.refs.table
+  console.log("buying action")
   var c= this.state.stateRefs.table.state.selectedRowKeys;
   var productsToBuy = [];
 
@@ -139,7 +327,8 @@ getSelectedRowKeys = () => {
       let {indexValue} = this.findElement(c[i])
       if (indexValue >-1) {
         var x=this.state.stateProducts[indexValue];
-        productsToBuy[i]=x;
+      //  productsToBuy[i]=this.getSellerData(x);
+      productsToBuy[i]=x;
       }
     }
       this.setState({stateProductsToBuy: productsToBuy});
@@ -173,6 +362,33 @@ componentWillMount() {
   this.updateProductArrays()
 }
 
+updateSellerArrays=(sellerEsProducts)=>{
+
+console.log("create product state data")
+
+var sellerProductsLocal=[];
+  for (var i = 0; i < sellerEsProducts.length; i++) {
+     var sellerDetails =  sellerEsProducts[i];
+     var sellerurl = sellerDetails._source.sellerurl;
+     var sellername = sellerDetails._source.sellername;
+     var partnumber = sellerDetails._source.partnumber;
+     var partman = sellerDetails._source.partman;
+   var partprice = sellerDetails._source.partprice;
+
+        sellerProductsLocal.push({
+        'sellerurl':   sellerurl,
+        'sellername': sellername,
+        'partnumber': partnumber,
+        'partman': partman,
+        'partprice': partprice
+      });
+      }
+
+//this.setState({sellerProducts: sellerProductsLocal}) // these are async updates hence local vars are used
+return sellerProductsLocal;
+}
+
+
 updateProductArrays=()=>{
   var products=[];
   var productkeys=[];
@@ -193,7 +409,8 @@ updateProductArrays=()=>{
         'partnumber':   partnumber,
         'imageurl': imageurl,
         'partdesc': partdesc,
-        'partman': partman
+        'partman': partman,
+        'partkey': partman + " " + partnumber
       });
       }
 this.setState({stateProducts: products}) // these are async updates hence local vars are used
@@ -223,10 +440,14 @@ this.setState({stateProductKeys: productkeys})
            <BuyTable
            products={this.state.stateProductsToBuy}
            imageFormatter={this.imageFormatter}
-      //     buttonFormatter={this.buttonFormatter}
+          buttonFormatter={this.buttonFormatter}
            multilinecell={this.multilinecell}
            updateStateRefs={this.updateStateRefs}
            selectRowProp={setSelectRowProp}
+           createCustomInsertButton={this.createCustomInsertButton}
+           expandComponent={this.expandComponent}
+           LinkFormatter={this.LinkFormatter}
+           isExpandableRow={this.isExpandableRow}
            setTable={setTable}
         //   clickRow={this.clickRow}
           buygetSelectedRowKeys={this.buygetSelectedRowKeys}

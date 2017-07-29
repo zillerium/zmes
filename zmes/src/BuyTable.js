@@ -4,7 +4,7 @@ import './App.css';
 import _ from 'lodash'
 import {Navbar, Jumbotron, Button, Nav, NavItem, NavDropdown,
   MenuItem, FormGroup, FormControl} from 'react-bootstrap';
-import {BootstrapTable, TableHeaderColumn} from 'react-bootstrap-table';
+import {BootstrapTable, TableHeaderColumn, InsertButton} from 'react-bootstrap-table';
 
 var Link = require('react-router-dom').Link
 
@@ -51,21 +51,39 @@ class BuyTable extends React.Component {
 //      dataFormat={this.props.buttonFormatter}> Sellers
 //    </TableHeaderColumn>
 
+//...
+//<BootstrapTable data={rows} options={options} insertRow>
+
 render() {
+//  const options = {
+//    insertBtn: this.props.createCustomInsertButton
+//  };
+//   striped={true} hover={true} options = {options} insertRow>
+//    <TableHeaderColumn   dataField="partman" width='200px'  dataAlign="center" dataFormat={this.props.LinkFormatter}>
   var selectRowProp = {
     mode: "checkbox",
       clickToSelect: true
   }
+  const options = {
+     expandRowBgColor: 'rgb(242, 255, 163)',
+    onExpand: this.props.handleExpand
+   };
     var tableHtml =
     <div>
      <button onClick={this.props.buygetSelectedRowKeys}>Buy</button>
     <button><Link  to={'/about'}>Link</Link></button>
-    <BootstrapTable data={this.props.products}  selectRow={this.props.selectRowProp}
+    <BootstrapTable data={this.props.products}
      ref={this.props.setTable}
-    striped={true} hover={true}>
+     options = { options }
+     expandableRow={ this.props.isExpandableRow }
+        expandColumnOptions={ { expandColumnVisible: true } }
+       expandComponent={ this.props.expandComponent }
+    striped={true} hover={true}  >
      <TableHeaderColumn      dataField="imageurl"  width='200px' dataAlign="center"
      dataFormat={this.props.imageFormatter}>Image</TableHeaderColumn>
-     <TableHeaderColumn   width='200px'   dataField="partnumber" isKey={true} dataAlign="center"
+     <TableHeaderColumn   width='200px'   dataField="partkey"  isKey={ true  }  dataAlign="center"
+     dataSort={true}>Product</TableHeaderColumn>
+     <TableHeaderColumn   width='200px'   dataField="partnumber"  dataAlign="center"
      dataSort={true}>Part Number</TableHeaderColumn>
      <TableHeaderColumn   dataField="partdesc" dataFormat={this.props.multilinecell}  dataAlign="center"
      dataSort={true}>Desc</TableHeaderColumn>
