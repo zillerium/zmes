@@ -18,6 +18,8 @@ var BrowserRouter = require('react-router-dom').BrowserRouter
 var Route = require('react-router-dom').Route
 var Link = require('react-router-dom').Link
 var web3 = require('web3');
+
+var axios = require('axios')
 //var elasticsearch = require('elasticsearch')
 
 
@@ -26,8 +28,10 @@ var selectRowProp= {
   clickToSelect: true
 }
 
+//   host: 'toganic.com:9200/product',
+
 const esClient = new elasticsearch.Client({
-  host: 'toganic.com:9200/product',
+  host: 'toganic.com:9200',
   log: 'error'
 })
 
@@ -36,12 +40,16 @@ const esSellerClient = new elasticsearch.Client({
   log: 'error'
 })
 
+var globalSellerListing = [];
+
 class App extends Component {
 
   constructor(props) {
     super(props);
-       this.state = { contractJson:[], switchVal: 0,stateProductsToBuy: [], stateProducts: [],
-         stateProductKeys: [], stateRefs: '', results:[], IPFSContract:'', IPFSText: '--', sellerProducts: [],
+       this.state = { contractJson:[], switchVal: 0, stateProductsToBuy: [],
+         stateProducts: [],
+         expandedRow: 0, zilleriumRowkey: 's', testState: 2, stateSellers: [],
+         stateProductKeys: [], stateRefs: '', results:[], IPFSContract:'', IPFSText: '--', sellerProducts: [], stateSellerListing: [],
       ETHEREUM_CLIENT: 'a', switchVal:0, UserMessage: [],
       contractAddress: '0x8d3e374e9dfcf7062fe8fc5bd5476b939a99b3ed',
       ZsendAddress:'0xd73e172751e751d274037cb1f668eb637df55e33',ZsendContract:''}
@@ -60,6 +68,7 @@ class App extends Component {
     this.expandComponent=this.expandComponent.bind(this)
     this.isExpandableRow=this.isExpandableRow.bind(this)
     this.getSellerData=this.getSellerData.bind(this)
+    this.handleExpand=this.handleExpand.bind(this)
     //this.selectRowProp = this.selectRowProp.bind(this)
   }
 
@@ -77,7 +86,7 @@ isExpandableRow(row) {
 
 LinkFormatter (cell, row) {
   var url = "http://merrows.co.uk"
-  var link = "<a href="+url+">"+"mrrows"+"</a>";
+  var link = "<a href="+cell+">"+row.sellername+"</a>";
   return link;
 }
 
@@ -90,122 +99,136 @@ expandComponent(row) {
 
   console.log("expand row action")
   var i=9;
- var sellers = this.findSellers(row.partman, row.partnumber)
+ var sellers = ''
+ if (this.state.expandedRow==1) {
+     this.findSellers(this.state.zilleriumRowkey)
+     sellers = this.state.stateSellers;
+
+
+  //  sellers = this.state.stateSellerListing;
+ }
 
   return (
     <BSTable
     data={sellers}
     LinkFormatter={this.LinkFormatter}
     />
+
 )
+}
+
+findSellersFromState(partkeyUI) {
+  //stateProductsToBuy;
+  var allSellers=[];
+
+   var setTable = "table"
+   for (const productDetail of this.state.stateProductsToBuy) {
+        const partkey = productDetail._source.partkey;
+        if (partkey==partkeyUI) {
+          var sellers = productDetail.sellers;
+          allSellers.push({
+            'partnumber':   sellers.partnumber,
+            'imageurl': sellers.imageurl,
+            'partdesc': sellers.partdesc,
+            'partman': sellers.partman,
+            'partkey': sellers.partman.toLowerCase() +  sellers.partnumber
+          });
+        }
+      }
+
+return allSellers;
+
 }
 
 handleExpand(rowKey, isExpand) {
   if (isExpand) {
     console.log(`row: ${rowKey} is ready to expand`);
+    this.setState({zilleriumRowkey: rowKey});
+        this.setState({expandedRow: 1});
+
   } else {
     console.log(`row: ${rowKey} is ready to collapse`);
+    this.setState({zilleriumRowkey: ''});
+        this.setState({expandedRow: 0});
   }
 }
 
-findSellers = (m, p) => {
 
 
-  var productsLocal = [];
-
-       var sellerurl= "http://www.building-supplies-online.co.uk/grohe-allure-bathshower-mixer-trim-two-way-diverter-19446000-194.html"
-       var sellername= "BSO"
-       var partnumber= "19446000"
-       var partprice= "299.65"
-       var partman= "Grohe"
-
-       productsLocal.push({
-       'sellerurl':   sellerurl,
-       'sellername': sellername,
-       'partnumber': partnumber,
-       'partprice': partprice,
-       'partman': partman,
-      'partkey': partman+' '+partnumber
-     });
+findSellersDSL ( partkey) {
 
 
 
-
-       var sellerurl= "https://www.bathroomsandshowersdirect.co.uk/bath-shower-mixers/bath-shower-mixers/grohe-allure-19446000-aquadimmer-bath-shower-mixer-trim-set"
-       var sellername= "Bathrooms and Showers Direct"
-       var partnumber= "19446000"
-       var partprice= "311.02"
-       var partman= "Grohe"
-
-       productsLocal.push({
-       'sellerurl':   sellerurl,
-       'sellername': sellername,
-       'partnumber': partnumber,
-       'partprice': partprice,
-       'partman': partman,
-       'partkey': partman+' '+partnumber
-     });
-
-     var sellerurl= "https://www.ergonomicdesigns.co.uk/product/27706000~grohe-spa-allure-brilliant-chrome-wall-hand-shower-holder.htmlt"
-     var sellername= "Ergonomic Designs"
-     var partnumber= "27706000"
-     var partprice= "18.15"
-     var partman= "Grohe"
-
-     productsLocal.push({
-     'sellerurl':   sellerurl,
-     'sellername': sellername,
-     'partnumber': partnumber,
-     'partprice': partprice,
-     'partman': partman,
-     'partkey': partman+' '+partnumber
-   });
-
-
- return productsLocal;
-
-
-
-}
-
-
- findSellers2 = ( searchPartMan, searchPartNumber ) => {
 //  const search_query = event.target.value
 console.log("this - ", this)
+console.log("get seller data")
+var sellers=[];
+esClient.search({
+  index: 'seller',
+  body: {
+    "from" : 0, "size" : 20,
+    "query" : {
+        "term" : { "partkey" : partkey }
+    }
+  }
+}, (error, response) => {
+    console.log("error ", error)
+    console.log("response ", response)
+      if (typeof error != 'undefined') {
+        // process error
+      }  else {
+        // process response
+        console.log ("process response")
+        let responseData = response.hits.hits;
+        console.log("response data - ", responseData)
+         sellers = this.updateSellerArrays(responseData);
+      }
 
-console.log("seller action", searchPartNumber)
-
-//  var searchQ = this.searchParm.value;
-
-var search_queryES="partnumber:" + searchPartNumber
-/*  esClient.search({
-    q: search_queryES
-  }).then(function ( body ) {
-    this.setState({
-      results: body.hits.hits
-    })
-    console.log(this.state.results)
-    this.updateProductArrays();
-  }.bind(this), function ( error ) {
-    console.trace( error.message );
-  });
-*/
-var sellerListing=[];
-  esSellerClient.search({
-    q: search_queryES
-  }).then(body => {
-
-      var searchResults=body.hits.hits
-  sellerListing=this.updateSellerArrays(searchResults);
-     var f=1;
-
-  //  this.updateProductArrays();
-  }, error => {
-    console.trace( error.message );
-
-  });
-return sellerListing;
+    // ...
+});
+return sellers;
 }
+
+findSellers ( partkey) {
+
+  const query = {
+    body: {
+      "from" : 0, "size" : 20,
+      "query" : {
+          "term" : { "partkey" : partkey }
+      }
+    }
+  };
+
+  const query2 = {
+      "query" : {
+          "term" : { "partkey" : partkey }
+      }
+  };
+
+//  const search_query = event.target.value
+console.log("this - ", this)
+console.log("get seller data")
+var sellers=[];
+var q= JSON.stringify(query2)
+console.log(q)
+axios.get('http://toganic.com:9200/seller/company/_search', {
+  params: {
+    source: q,
+    source_content_type: 'application/json'
+  }
+}).then((response) => {
+  console.log(response);
+  let responseData = response.data.hits.hits;
+  console.log("response data - ", responseData)
+   sellers = this.updateSellerArrays(responseData);
+   this.setState({stateSellers:sellers});
+});
+
+
+//return sellers;
+}
+
 
 
 handleChange (  ) {
@@ -215,29 +238,34 @@ console.log("get product data")
 this.setState({switchVal:0});
   var searchQ = this.searchParm.value;
 var search_queryES="partdesc:" + searchQ + "*"
-/*  esClient.search({
-    q: search_queryES
-  }).then(function ( body ) {
-    this.setState({
-      results: body.hits.hits
-    })
-    console.log(this.state.results)
-    this.updateProductArrays();
-  }.bind(this), function ( error ) {
-    console.trace( error.message );
-  });
-*/
-  esClient.search({
-    q: search_queryES
-  }).then(body => {
-    this.setState({
-      results: body.hits.hits
-    })
-    console.log(this.state.results)
-    this.updateProductArrays();
-  }, error => {
-    console.trace( error.message );
-  });
+
+const searchTerm = `${searchQ}*`;
+esClient.search({
+  index: 'product',
+  body: {
+    "from" : 0, "size" : 10,
+    "query" : {
+        "wildcard" : { "partdesc" : searchTerm }
+    }
+  }
+}, (error, response) => {
+    console.log("error ", error)
+    console.log("response ", response)
+      if (typeof error != 'undefined') {
+        // process error
+      }  else {
+        // process response
+        console.log ("process response")
+        let responseData = response.hits.hits;
+        console.log("response data - ", responseData)
+        this.updateProductArrays(responseData);
+      }
+
+
+    // ...
+});
+
+
 
 }
 
@@ -295,21 +323,26 @@ console.log("get seller data")
     var imageurl = productRecord.imageurl;
     var partdesc = productRecord.partdesc;
     var partnumber = productRecord.partnumber;
-    sellerProducts = this.findSellers(partman, partnumber);
+    var partkey = productRecord.partkey;
+    sellerProducts = this.findSellers(partkey);
     productsLocal.push({
     'partnumber':   partnumber,
     'imageurl': imageurl,
     'partdesc': partdesc,
     'partman': partman,
+    'partkey': partkey,
     'sellers': sellerProducts
   });
 
 
-  return productsLocal;
+  return productsLocal[0];
 //  this.setState({stateProducts: productsLocal});
 
 }
-
+handleOnSelect(row, isSelected) {
+console.log("88888888888888 rows selected")
+  var i=1;
+}
 
 getSelectedRowKeys = () => {
   // this.refs.table
@@ -327,7 +360,9 @@ getSelectedRowKeys = () => {
       let {indexValue} = this.findElement(c[i])
       if (indexValue >-1) {
         var x=this.state.stateProducts[indexValue];
-      //  productsToBuy[i]=this.getSellerData(x);
+      //  var y = this.getSellerData(x)
+      //  productsToBuy[i]=y;
+        var u=1;
       productsToBuy[i]=x;
       }
     }
@@ -349,17 +384,9 @@ findElement=(searchString)=>{
     return {indexValue: found}
 }
 
-
-//  <TableHeaderColumn dataField="button"   dataAlign="center"
-//  dataFormat={this.buttonFormatter}>Buy</TableHeaderColumn>
-
-    //                "imageurl": "34215000",
-    //                "partdesc": "3-Hole basin mixer installation with star handles, escutcheons with short spout, wall mounted spout 166 mm long normal spray flow rate: 5 l/min operating pressure: min. 1 bar / max. 10 bar flush grated waste - water flow cannot be stopped ",
-    ///                "partnumber": "34215000",
-    //                "partman": "Grohe"
 componentWillMount() {
 
-  this.updateProductArrays()
+//  this.updateProductArrays()
 }
 
 updateSellerArrays=(sellerEsProducts)=>{
@@ -380,42 +407,46 @@ var sellerProductsLocal=[];
         'sellername': sellername,
         'partnumber': partnumber,
         'partman': partman,
-        'partprice': partprice
+        'partprice': partprice,
+        'partkey': partman.toLowerCase() +  partnumber
       });
       }
 
 //this.setState({sellerProducts: sellerProductsLocal}) // these are async updates hence local vars are used
 return sellerProductsLocal;
+//this.setState({stateSellers: sellerProductsLocal})
 }
 
 
-updateProductArrays=()=>{
+updateProductArrays=(returnedProducts)=>{
   var products=[];
   var productkeys=[];
 
    var setTable = "table"
-  for (var i = 0; i < this.state.results.length; i++) {
-     var customerName =  this.state.results[i];
-     var partdesc = customerName._source.partdesc;
-     var partnumber = customerName._source.partnumber;
-     var partman = customerName._source.partman;
-     var imageurl = customerName._source.imageurl;
-     var mynewname = 'trevor oakley data field';
-     var myimageurl = 'https://s14.postimg.org/c3w0pd569/groheimage.jpg'
-     productkeys.push({
-       'partnumber': partnumber
-     })
+
+
+      for (const customerName of returnedProducts) {
+        const partdesc = customerName._source.partdesc;
+        const partnumber = customerName._source.partnumber;
+        const partman = customerName._source.partman;
+        const imageurl = customerName._source.imageurl;
+        productkeys.push({
+          'partnumber': partnumber
+        })
         products.push({
         'partnumber':   partnumber,
         'imageurl': imageurl,
         'partdesc': partdesc,
         'partman': partman,
-        'partkey': partman + " " + partnumber
+        'partkey': partman.toLowerCase() +  partnumber
       });
       }
+
 this.setState({stateProducts: products}) // these are async updates hence local vars are used
 this.setState({stateProductKeys: productkeys})
 }
+
+
 
   render() {
     var setTable = 'table';
@@ -449,45 +480,15 @@ this.setState({stateProductKeys: productkeys})
            LinkFormatter={this.LinkFormatter}
            isExpandableRow={this.isExpandableRow}
            setTable={setTable}
+           handleExpand={this.handleExpand}
+           handleOnSelect={this.handleOnSelect}
+           sellerProducts={this.sellerProducts}
         //   clickRow={this.clickRow}
           buygetSelectedRowKeys={this.buygetSelectedRowKeys}
            />
          </div>
        }
-/*
-       var tableHtml3 =
-       <div>
-       <button onClick={this.getSelectedRowKeys}>Buy</button>
-       <button><Link  to={'/about'}>Link</Link></button>
-    <BootstrapTable data={this.state.stateProducts} selectRow={selectRowProp  } ref='table'
-    striped={true} hover={true}>
-        <TableHeaderColumn      dataField="imageurl"  width='200px' dataAlign="center"
-        dataFormat={this.imageFormatter}>Image</TableHeaderColumn>
-        <TableHeaderColumn   width='200px'   dataField="partnumber" isKey={true} dataAlign="center"
-        dataSort={true}>Part Number</TableHeaderColumn>
-        <TableHeaderColumn   dataField="partdesc" dataFormat={this.multilinecell}  dataAlign="center"
-        dataSort={true}>Desc</TableHeaderColumn>
-        <TableHeaderColumn   dataField="partman" width='200px'  dataAlign="center"
-        dataSort={true}>Manufacturer</TableHeaderColumn>
-      </BootstrapTable>
-      </div>
 
-      var buyTableHtml =
-      <div>
-      <button onClick={this.buygetSelectedRowKeys.bind(this)}>Confirm</button>
-   <BootstrapTable data={this.state.stateProductsToBuy} selectRow={selectRowProp} ref='buytable'
-   striped={true} hover={true}>
-       <TableHeaderColumn      dataField="imageurl"  width='200px' dataAlign="center"
-       dataFormat={this.imageFormatter}>Image</TableHeaderColumn>
-       <TableHeaderColumn   width='200px'   dataField="partnumber" isKey={true} dataAlign="center"
-       dataSort={true}>Part Number</TableHeaderColumn>
-       <TableHeaderColumn   dataField="partdesc" dataFormat={this.multilinecell}  dataAlign="center"
-       dataSort={true}>Desc</TableHeaderColumn>
-       <TableHeaderColumn   dataField="partman" width='200px'  dataAlign="center"
-       dataSort={true}>Manufacturer</TableHeaderColumn>
-     </BootstrapTable>
-     </div>
-     */
     const navbarInstance = (
   <Navbar>
     <Navbar.Header>
